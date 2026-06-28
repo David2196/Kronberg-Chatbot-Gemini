@@ -15,7 +15,6 @@ export default function KronbergChatbot() {
   }, [messages]);
 
   const startSession = () => {
-    // EXAKT der Satz aus den Systemregeln von Dr. Kronberg!
     const opening = "Sie haben 20 Minuten. Präsentieren Sie mir bitte Ihren Veränderungsprozess zum Projekt Fokus26.";
     setMessages([{ role: "assistant", content: opening }]);
     setHasStarted(true);
@@ -59,7 +58,6 @@ export default function KronbergChatbot() {
         ...prev,
         { role: "assistant", content: `Fehler-Details: ${err.message}` },
       ]);
-    }
     } finally {
       setIsLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -76,7 +74,7 @@ export default function KronbergChatbot() {
   const resetSession = () => {
     setMessages([]);
     setInput("");
-    setHasStarted(false);
+    setHasStarted(false)
     setSessionEnded(false);
   };
 
