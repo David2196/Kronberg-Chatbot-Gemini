@@ -34,46 +34,51 @@ export async function POST(req) {
       return Response.json({ error: "GEMINI_API_KEY fehlt in Vercel" }, { status: 500 });
     }
 
-    const contents = [];
-    contents.push({
-      role: "user",
-      parts: [{ text: "Systemanweisung: " + KRONBERG_PROMPT }]
-    });
-    contents.push({
-      role: "model",
-      parts: [{ text: "Verstanden. Ich bin bereit." }]
-    });
-    for (const m of messages) {
-      contents.push({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }]
-      });
-    }
+    // Chat-Verlauf für Gemini API transformieren
+    const contents = messages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }]
+    }));
 
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey;
+    // URL ohne API-Key im Query-String (wichtig für die Zuverlässigkeit des AQ.-Formats)
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        // Authentifizierung über Header löst Autorisierungsprobleme bei AQ.-Keys auf Vercel
+        "x-goog-api-key": apiKey,
       },
-      body: JSON.stringify({ contents }),
+      body: JSON.stringify({
+        contents: contents,
+        // System-Anweisungen nativ übergeben, damit die Rolle permanent aktiv bleibt
+        systemInstruction: {
+          parts: [{ text: KRONBERG_PROMPT }]
+        },
+        generationConfig: {
+          temperature: 0.7,
+        }
+      }),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      return Response.json({ error: "Gemini: " + (data.error?.message || JSON.stringify(data)) }, { status: 500 });
+      return Response.json(
+        { error: "Gemini API Fehler: " + (data.error?.message || JSON.stringify(data)) },
+        { status: response.status }
+      );
     }
 
     const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!reply) {
-      return Response.json({ error: "Keine Antwort: " + JSON.stringify(data) }, { status: 500 });
+      return Response.json({ error: "Keine Textantwort erhalten: " + JSON.stringify(data) }, { status: 500 });
     }
 
     return Response.json({ reply });
 
   } catch (err) {
-    return Response.json({ error: "Netzwerkfehler: " + err.message }, { status: 500 });
+    return Response.json({ error: "Interner Serverfehler: " + err.message }, { status: 500 });
   }
 }
