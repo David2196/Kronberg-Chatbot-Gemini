@@ -40,19 +40,19 @@ export async function POST(req) {
       parts: [{ text: m.content }]
     }));
 
-    // URL ohne API-Key im Query-String (wichtig für die Zuverlässigkeit des AQ.-Formats)
+    // URL ohne Key im Query-String – behebt Probleme mit dem neuen AQ.-Format
     const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Authentifizierung über Header löst Autorisierungsprobleme bei AQ.-Keys auf Vercel
+        // Hier wird dein AQ.-Key sicher per Header übertragen
         "x-goog-api-key": apiKey,
       },
       body: JSON.stringify({
         contents: contents,
-        // System-Anweisungen nativ übergeben, damit die Rolle permanent aktiv bleibt
+        // Übermittlung des System-Prompts als natives API-Feature
         systemInstruction: {
           parts: [{ text: KRONBERG_PROMPT }]
         },
@@ -73,7 +73,7 @@ export async function POST(req) {
 
     const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!reply) {
-      return Response.json({ error: "Keine Textantwort erhalten: " + JSON.stringify(data) }, { status: 500 });
+      return Response.json({ error: "Keine Textantwort erhalten" }, { status: 500 });
     }
 
     return Response.json({ reply });
