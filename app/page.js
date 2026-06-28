@@ -15,7 +15,8 @@ export default function KronbergChatbot() {
   }, [messages]);
 
   const startSession = () => {
-    const opening = "Sie haben 20 Minuten. Was genau wollen Sie mir heute zu Projekt Fokus26 präsentieren?";
+    // EXAKT der Satz aus den Systemregeln von Dr. Kronberg!
+    const opening = "Sie haben 20 Minuten. Präsentieren Sie mir bitte Ihren Veränderungsprozess zum Projekt Fokus26.";
     setMessages([{ role: "assistant", content: opening }]);
     setHasStarted(true);
     setTimeout(() => inputRef.current?.focus(), 100);
@@ -36,8 +37,9 @@ export default function KronbergChatbot() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: newMessages }),
       });
+      
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (!res.ok || data.error) throw new Error(data.error || "Fehler beim Abruf");
 
       const reply = data.reply;
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
@@ -52,6 +54,7 @@ export default function KronbergChatbot() {
         setSessionEnded(true);
       }
     } catch (err) {
+      console.error(err);
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: "— [Verbindungsfehler. Bitte Seite neu laden.] —" },
