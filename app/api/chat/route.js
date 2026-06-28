@@ -1,261 +1,82 @@
-"use client";
-import { useState, useRef, useEffect } from "react";
+const KRONBERG_PROMPT = `Du bist der Vorstand der Kronberg Sitzsysteme GmbH, einem Automobilzulieferer mit mehreren Standorten in Europa. Das Unternehmen beschäftigt 1.500 Mitarbeitende und ist spezialisiert auf Gesamtsitzsysteme für Automobilhersteller. Wichtigste Kunden sind AUDI und BMW. Der Jahresumsatz 2024 beträgt 370 Millionen Euro.
+Du bist direkt und ergebnisorientiert, aber kein Unmensch. Du willst verstehen, ob das Team grundsätzlich an alles gedacht hat. Das ist ein erstes Orientierungsgespräch, kein Abnahme-Audit.
 
-export default function KronbergChatbot() {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasStarted, setHasStarted] = useState(false);
-  const [sessionEnded, setSessionEnded] = useState(false);
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
+Die Kronberg Sitzsysteme GmbH steht unter erheblichem wirtschaftlichem Druck. Trotz Umsatzwachstums ist das EBIT von 20 Mio. € auf 13 Mio. € gesunken. Mit Projekt Fokus26 soll das Unternehmen bis 2028 grundlegend transformiert werden.
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+Strategische Ziele bis 2028: EBIT von 13 auf 26 Mio. €, Materialausbeute-Verlust von 8,5 auf 5 Mio. €, Premiumfrachtkosten von 2,1 auf 0,8 Mio. €, OEM-Strafen von 10 auf 2 Mio. €, Ausfallzeiten von 6,4% auf 3,5%.
 
-  const startSession = () => {
-    // EXAKT der Satz aus den Systemregeln von Dr. Kronberg!
-    const opening = "Sie haben 20 Minuten. Präsentieren Sie mir bitte Ihren Veränderungsprozess zum Projekt Fokus26.";
-    setMessages([{ role: "assistant", content: opening }]);
-    setHasStarted(true);
-    setTimeout(() => inputRef.current?.focus(), 100);
-  };
+Du simulierst ein erstes Orientierungsgespräch mit dem Projektteam Fokus26. Wenn das Gespräch in Finanzzahlen abgleitet, lenkst du zurück.
 
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading || sessionEnded) return;
+Pflichtthemen - genau eine Frage pro Nachricht:
+- Ausgangslage: Was soll verändert werden?
+- Vision: Wo wollen Sie hin?
+- Führung: Wie wird sichergestellt dass das nicht nur eine Ansage von oben bleibt?
+- Kommunikation: Wie soll die Kommunikation laufen?
+- Multiplikatoren: Wer trägt das in die Breite?
+- Betriebsrat: Ist der Betriebsrat berücksichtigt?
+- Steuerung: Wie ziehen alle Bereiche am gleichen Strang?
+- Ressourcen: Intern oder externe Unterstützung?
+- Mitarbeitende: Wie holen Sie die Belegschaft mit?
+- Tracking: Wie verfolgen Sie den Fortschritt?
 
-    const userMessage = { role: "user", content: input.trim() };
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
-    setInput("");
-    setIsLoading(true);
+Gesprächsregeln: Pro Nachricht genau eine Frage. Direkt reagieren. Kurz bestätigen wenn Thema beantwortet. Bei vagen Antworten einmal nachfragen. Kein Smalltalk. Wie ein Unternehmer sprechen.
 
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages }),
-      });
-      
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Fehler beim Abruf");
+Eröffne mit exakt diesem Satz: Sie haben 20 Minuten. Präsentieren Sie mir bitte Ihren Veränderungsprozess zum Projekt Fokus26.
 
-      const reply = data.reply;
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+Bewertung am Ende: Freigabe zur Umsetzung / Freigabe unter Auflagen / Nicht freigegeben.`;
 
-      const lower = reply.toLowerCase();
-      if (
-        lower.includes("freigabe zur umsetzung") ||
-        lower.includes("freigabe unter auflagen") ||
-        lower.includes("nicht freigegeben") ||
-        lower.includes("erst dann reden wir weiter")
-      ) {
-        setSessionEnded(true);
-      }
-    } catch (err) {
-      console.error(err);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "— [Verbindungsfehler. Bitte Seite neu laden.] —" },
-      ]);
-    } finally {
-      setIsLoading(false);
-      setTimeout(() => inputRef.current?.focus(), 100);
+export async function POST(req) {
+  try {
+    const { messages } = await req.json();
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return Response.json({ error: "GEMINI_API_KEY fehlt in Vercel" }, { status: 500 });
     }
-  };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
+    // Verlauf für die Gemini REST API mappen
+    const contents = messages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }]
+    }));
 
-  const resetSession = () => {
-    setMessages([]);
-    setInput("");
-    setHasStarted(false);
-    setSessionEnded(false);
-  };
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
-  return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#0f0f0f",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      fontFamily: "'Georgia', 'Times New Roman', serif",
-    }}>
-      {/* Header */}
-      <div style={{
-        width: "100%",
-        maxWidth: "780px",
-        borderBottom: "1px solid #2a2a2a",
-        padding: "20px 32px 16px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-end",
-      }}>
-        <div>
-          <div style={{ fontSize: "11px", letterSpacing: "3px", color: "#8a7340", textTransform: "uppercase", marginBottom: "4px", fontFamily: "Arial, sans-serif" }}>
-            KRONBERG SITZSYSTEME GMBH
-          </div>
-          <div style={{ fontSize: "20px", color: "#e8e0d0", fontWeight: "normal" }}>
-            Dr. Klaus Kronberg
-          </div>
-          <div style={{ fontSize: "12px", color: "#555", fontFamily: "Arial, sans-serif", marginTop: "2px" }}>
-            Vorstandsvorsitzender · Projekt Fokus26
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <div style={{
-            width: "8px", height: "8px", borderRadius: "50%",
-            background: sessionEnded ? "#555" : isLoading ? "#8a7340" : "#4a7c59",
-            boxShadow: sessionEnded ? "none" : isLoading ? "0 0 6px #8a7340" : "0 0 6px #4a7c59",
-          }} />
-          <span style={{ fontSize: "11px", color: "#444", fontFamily: "Arial, sans-serif", letterSpacing: "1px" }}>
-            {sessionEnded ? "BEENDET" : isLoading ? "..." : "AKTIV"}
-          </span>
-        </div>
-      </div>
-
-      {/* Chat Area */}
-      <div style={{
-        width: "100%",
-        maxWidth: "780px",
-        flex: 1,
-        minHeight: "520px",
-        maxHeight: "580px",
-        overflowY: "auto",
-        padding: "28px 32px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0",
-      }}>
-        {!hasStarted && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "20px", textAlign: "center", padding: "60px 40px" }}>
-            <div style={{ width: "60px", height: "1px", background: "linear-gradient(90deg, transparent, #8a7340, transparent)", marginBottom: "8px" }} />
-            <p style={{ color: "#666", fontFamily: "Arial, sans-serif", fontSize: "13px", lineHeight: "1.7", maxWidth: "420px" }}>
-              Sie betreten den Vorstandsraum der Kronberg Sitzsysteme GmbH. Dr. Klaus Kronberg erwartet Ihre Präsentation zu Projekt Fokus26.
-            </p>
-            <button
-              onClick={startSession}
-              style={{
-                marginTop: "8px", padding: "12px 36px", background: "transparent",
-                border: "1px solid #8a7340", color: "#c9a84c",
-                fontFamily: "Arial, sans-serif", fontSize: "11px",
-                letterSpacing: "2.5px", textTransform: "uppercase", cursor: "pointer",
-              }}
-            >
-              Gespräch beginnen
-            </button>
-          </div>
-        )}
-
-        {messages.map((msg, i) => (
-          <div key={i} style={{ marginBottom: "20px", display: "flex", flexDirection: "column", alignItems: msg.role === "user" ? "flex-end" : "flex-start" }}>
-            <div style={{
-              fontSize: "10px", color: "#3a3a3a", fontFamily: "Arial, sans-serif",
-              letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: "6px",
-            }}>
-              {msg.role === "assistant" ? "DR. KRONBERG" : "PROJEKTTEAM"}
-            </div>
-            <div style={{
-              maxWidth: "88%",
-              padding: msg.role === "assistant" ? "16px 20px" : "12px 18px",
-              background: msg.role === "assistant" ? "#161616" : "#1a1a1a",
-              border: msg.role === "assistant" ? "1px solid #2a2a2a" : "1px solid #252525",
-              borderLeft: msg.role === "assistant" ? "3px solid #8a7340" : "1px solid #252525",
-              color: msg.role === "assistant" ? "#d8cfc0" : "#888",
-              fontSize: "15px", lineHeight: "1.7",
-            }}>
-              {msg.content}
-            </div>
-          </div>
-        ))}
-
-        {isLoading && (
-          <div style={{ marginBottom: "20px" }}>
-            <div style={{ fontSize: "10px", color: "#3a3a3a", fontFamily: "Arial, sans-serif", letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: "6px" }}>
-              DR. KRONBERG
-            </div>
-            <div style={{ padding: "14px 20px", background: "#161616", border: "1px solid #2a2a2a", borderLeft: "3px solid #8a7340", display: "inline-flex", gap: "5px", alignItems: "center" }}>
-              {[0, 1, 2].map(j => (
-                <div key={j} style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#8a7340", animation: `pulse 1.2s ease-in-out ${j * 0.2}s infinite` }} />
-              ))}
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input */}
-      {hasStarted && (
-        <div style={{ width: "100%", maxWidth: "780px", borderTop: "1px solid #1e1e1e", padding: "16px 32px 24px" }}>
-          {sessionEnded ? (
-            <div style={{ textAlign: "center" }}>
-              <p style={{ color: "#444", fontFamily: "Arial, sans-serif", fontSize: "12px", letterSpacing: "1px", marginBottom: "14px" }}>
-                DAS GESPRÄCH IST BEENDET
-              </p>
-              <button
-                onClick={resetSession}
-                style={{ padding: "10px 28px", background: "transparent", border: "1px solid #333", color: "#555", fontFamily: "Arial, sans-serif", fontSize: "11px", letterSpacing: "2px", textTransform: "uppercase", cursor: "pointer" }}
-              >
-                Neues Gespräch
-              </button>
-            </div>
-          ) : (
-            <>
-              <div style={{ display: "flex", gap: "12px", alignItems: "flex-end" }}>
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ihre Präsentation..."
-                  rows={3}
-                  style={{
-                    flex: 1, padding: "12px 16px", background: "#141414",
-                    border: "1px solid #272727", color: "#b0a898",
-                    fontFamily: "Georgia, serif", fontSize: "14px",
-                    lineHeight: "1.6", resize: "none", outline: "none",
-                  }}
-                  disabled={isLoading}
-                />
-                <button
-                  onClick={sendMessage}
-                  disabled={isLoading || !input.trim()}
-                  style={{
-                    padding: "12px 22px",
-                    background: isLoading || !input.trim() ? "transparent" : "#8a7340",
-                    border: "1px solid",
-                    borderColor: isLoading || !input.trim() ? "#252525" : "#8a7340",
-                    color: isLoading || !input.trim() ? "#333" : "#0f0f0f",
-                    fontFamily: "Arial, sans-serif", fontSize: "11px",
-                    letterSpacing: "1.5px", textTransform: "uppercase",
-                    cursor: isLoading || !input.trim() ? "default" : "pointer",
-                    alignSelf: "stretch",
-                  }}
-                >
-                  Senden
-                </button>
-              </div>
-              <div style={{ marginTop: "8px", fontSize: "10px", color: "#2e2e2e", fontFamily: "Arial, sans-serif" }}>
-                Enter zum Senden · Shift+Enter für neue Zeile
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 0.3; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1); }
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // Sichere Übergabe des neuen AQ.-Formatschlüssels über Header
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        contents: contents,
+        systemInstruction: {
+          parts: [{ text: KRONBERG_PROMPT }]
+        },
+        generationConfig: {
+          temperature: 0.7,
         }
-      `}</style>
-    </div>
-  );
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return Response.json(
+        { error: "Gemini API Fehler: " + (data.error?.message || JSON.stringify(data)) },
+        { status: response.status }
+      );
+    }
+
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!reply) {
+      return Response.json({ error: "Keine Textantwort von Gemini erhalten." }, { status: 500 });
+    }
+
+    return Response.json({ reply });
+
+  } catch (err) {
+    return Response.json({ error: "Interner Serverfehler: " + err.message }, { status: 500 });
+  }
 }
