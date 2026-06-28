@@ -54,9 +54,17 @@ export default function KronbergChatbot() {
       }
     } catch (err) {
       console.error(err);
+      
+      // Eleganter Fallback für den Nutzer, solange die Google-Quota streikt
+      let fallbackText = "— [Verbindungsfehler. Bitte Seite neu laden.] —";
+      const errMsg = err.message ? err.message.toLowerCase() : "";
+      if (errMsg.includes("quota") || errMsg.includes("limit") || errMsg.includes("exceeded")) {
+        fallbackText = "Dafür habe ich jetzt keine Zeit. Kommen Sie gleich auf den Punkt oder strukturieren Sie Ihre Argumente neu.";
+      }
+
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `Fehler-Details: ${err.message}` },
+        { role: "assistant", content: fallbackText },
       ]);
     } finally {
       setIsLoading(false);
@@ -74,7 +82,7 @@ export default function KronbergChatbot() {
   const resetSession = () => {
     setMessages([]);
     setInput("");
-    setHasStarted(false)
+    setHasStarted(false);
     setSessionEnded(false);
   };
 
