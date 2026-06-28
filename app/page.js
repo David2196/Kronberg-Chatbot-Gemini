@@ -57,8 +57,9 @@ export default function KronbergChatbot() {
       console.error(err);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "— [Verbindungsfehler. Bitte Seite neu laden.] —" },
+        { role: "assistant", content: `Fehler-Details: ${err.message}` },
       ]);
+    }
     } finally {
       setIsLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
